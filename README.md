@@ -1,6 +1,10 @@
-# Web Connected RGB Controller Example (WS2812, WS2813)
+# Web Connected RGB Led Line Example
 
-RGB led line controller which uses [Web Thing Server](https://github.com/KrzysztofZurek1973/iot_components/tree/master/web_thing_server) on ESP32 (with [esp-idf ver. 4.0](https://github.com/espressif/esp-idf)).
+This example shows the usage of RGB led line controller (with WS2812, WS2813) which uses [Web Thing Server](https://github.com/KrzysztofZurek1973/iot_components/tree/master/web_thing_server) on ESP32 (with [esp-idf ver. 4.0](https://github.com/espressif/esp-idf)).
+
+Connection of ESP32 devkit board with WS2813 diode line is shown below. Led's data line is connected to IO23 of ESP32. Led line is powered from devkit and can draw maximum aproximitly about 600mA from the board (it gives only 10 diodes with maximum light). For more diodes external 5VDC current source is necessary and it must be connected directly to the led line.
+
+![connection](./p4.png)
 
 Picture below shows the Gateway Web Interface for this thing.
 
