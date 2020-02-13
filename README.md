@@ -2,18 +2,22 @@
 
 RGB led line controller which uses [Web Thing Server](https://github.com/KrzysztofZurek1973/iot_components/tree/master/web_thing_server) on ESP32 (with [esp-idf ver. 4.0](https://github.com/espressif/esp-idf)).
 
-Picture below shows the Gateway Web Interface of the thing.
+Picture below shows the Gateway Web Interface for this thing.
 
-![rgb line](./p1.png)
+![rgb line](./p3.png)
 	
- Controller has the following properties:
+ The controller has the following properties:
  
 - `on` - ON/OFF led line
 - `diodes` - number of diodes in the line
-- `pattern` - currently running pattern
 - `color` - RGB color defined for some patterns
 - `speed` - pattern refreshment speed, 0 .. 100
 - `brgh` - leds' brightness, 0 .. 100
+- `pattern` - currently running pattern
+
+Patterns list is implemented as `string enum` in json format. Picture below shows that list on Firefox Android.
+
+![patterns](./p2.png)
 
 ## Requirements
 
@@ -25,7 +29,13 @@ The following software must be copied into `components` folder:
 
 ## Documentation
 
-TODO
+By the first power-up the node starts in **AP** mode with SSID: ```iot-node-ap``` and password: ```htqn9Fzv```. After loggin into this WiFi network load the main page by typing in browser ```iot-node-ap.local:8080/``` (it does not work on Android) or ```192.168.4.1:8080/```.
+
+On the page write SSID and password of the WiFi network where the node will work. In the last position enter the local node's name.
+
+Pressing *submit* causes writing data into flash and restart of the node in *station* mode. If you want to change the WiFi SSID or password later just connect ```GPIO27``` to GND, this causes node's restart in **AP** mode as in the previous paragraph.
+
+If *WebThing Gateway* runs in the same WiFi network go to *Things* category on gateway and press *plus* sign. Gateway shoud find new things, press *Save* and *Done*.
 
 
 ### Project Configuration
