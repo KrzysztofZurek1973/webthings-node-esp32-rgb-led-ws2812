@@ -3,7 +3,7 @@ menu "RGB Controller Configuration"
 config PIN_NUM_MOSI
     int "WS2812 Data GPIO number"
 	range 0 34
-	default 23
+	default 25
 	help
 		GPIO number (IOxx) to send RGB data via SPI interface.
 

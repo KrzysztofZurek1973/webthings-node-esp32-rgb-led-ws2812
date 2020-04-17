@@ -35,6 +35,7 @@
 
 #include "simple_web_thing_server.h"
 #include "web_thing_softap.h"
+#include "reset_button.h"
 #include "web_thing_mdns.h"
 #include "thing_rgb_led_line.h"
 
@@ -43,17 +44,11 @@
 
 #define LEDS_MIN 5
 
-//NVS wifi delete button
-#define GPIO_DELETE_BUTTON		27
-#define GPIO_DELETE_BUTTON_MASK	(1ULL << GPIO_DELETE_BUTTON)
 //ready/not ready green led indicator
 #define GPIO_RGB_DATA			(CONFIG_PIN_NUM_MOSI)
 #define GPIO_RGB_DATA_MASK		(1ULL << CONFIG_PIN_NUM_MOSI)
 
 #define ESP_INTR_FLAG_DEFAULT	0
-
-/* FreeRTOS event group to signal when we are connected*/
-static EventGroupHandle_t wifi_event_group;
 
 //wifi station configuration data
 char mdns_hostname[65];
@@ -62,11 +57,6 @@ const int IP4_CONNECTED_BIT = BIT0;
 const int IP6_CONNECTED_BIT = BIT1;
 
 static int irq_counter = 0;
-
-xSemaphoreHandle DRAM_ATTR delete_button_sem;
-static bool DRAM_ATTR nvs_delete_button_ready = false;
-//nvs_handle storage_handle = 0;
-static xTaskHandle ap_server_task_handle;
 
 //wifi data
 /* FreeRTOS event group to signal when we are connected*/
@@ -80,17 +70,11 @@ static void chipInfo(void);
 static void event_handler(void* arg, esp_event_base_t event_base, 
                                 int32_t event_id, void* event_data);
 void wifi_init_sta(char *ssid, char *pass);
-static void ioInit(void);
-void init_delete_button(void);
-void init_delete_button_io(void);
-void delete_button_fun(void *pvParameter);
 void init_nvs(void);
 static void init_sntp(void);
-void delete_button_fun(void *pvParameter);
 
 //other tasks
 bool thing_server_loaded = false;
-bool node_restart = false;
 static bool node_is_station = false;
 void init_things(void);
 void ready_led_fun(void *pvParameter);
@@ -126,20 +110,18 @@ void app_main(){
 
 	init_nvs();
 
-	nvs_delete_button_ready = true;
-
 	//start here additional non-network tasks
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-	ioInit();
-	init_delete_button();
+	gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+	init_reset_button();
 	
 	int32_t heap, prev_heap, i = 0;
 	heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
 	prev_heap = heap;
 	printf("%i, free heap: %i, irq: %i\n", i, heap, irq_counter);
 
-	while (node_restart == false) {
+	while (1) {
 		i++;
 		vTaskDelay(2000 / portTICK_PERIOD_MS);
 		
@@ -179,7 +161,6 @@ void app_main(){
  * *****************************************************/
 void init_things(){
 	//build up the thing
-	puts("Web Thing Server is starting\n");
 
 	root_node_init();
 
@@ -234,7 +215,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 	    	xEventGroupSetBits(wifi_event_group, IP4_CONNECTED_BIT);
 	    	if (thing_server_loaded == false){
 	    		//initialize web thing server
-	    		start_web_thing_server(8080, mdns_hostname, DOMAIN);
+	    		start_web_thing_server(8080, mdns_hostname, MDNS_DOMAIN);
 	    		thing_server_loaded = true;
 	    		//initialize sntp client
 	    		init_sntp();
@@ -316,7 +297,6 @@ void init_nvs(void){
 		printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
 	}
 	else {
-		//char ssid[32], pass[64], mdns_host[64];
 		uint32_t ssid_len = 0, pass_len = 0, mdns_len = 0;
 
 		printf("Done\n");
@@ -327,7 +307,6 @@ void init_nvs(void){
 		esp_err_t err2 = nvs_get_str(storage_handle, "pass", NULL, &pass_len);
 		esp_err_t err3 = nvs_get_str(storage_handle, "mdns_host", NULL, &mdns_len);
 		printf("Done\n");
-		//printf("ssid_len: %i, pass_len: %i, mdns_len: %i\n", ssid_len, pass_len, mdns_len);
 		printf("errors: %i, %i, %i, \n", err1, err2, err3);
 
 		if ((err1 == ESP_OK) && (err2 == ESP_OK) && (ssid_len > 0) && (pass_len > 0)
@@ -341,16 +320,11 @@ void init_nvs(void){
 				wifi_ssid[ssid_len - 1] = 0;
 				wifi_pass[pass_len - 1] = 0;
 				mdns_hostname[mdns_len - 1] = 0;
-				//without printf below node failed constantly in connecting
-				//to AP! - what it is?
-				//somewhere time constraints are bad!
-				vTaskDelay(5 / portTICK_PERIOD_MS); //5ms wait solves problem temporaryly
-				//printf("ssid: %s, pass: %s, mdns: %s\n", wifi_ssid, wifi_pass, mdns_hostname);
+				vTaskDelay(5 / portTICK_PERIOD_MS);
 
 				//initialize wifi
 				wifi_init_sta(wifi_ssid, wifi_pass);
 				initialise_mdns(mdns_hostname, false);
-				//node_is_station = true;
 			}
 			else{
 				printf("ssid, password or hostname too long, %i, %i, %i\n",
@@ -360,13 +334,12 @@ void init_nvs(void){
 		else{
 			//ssid, password or node name not defined
 			//start AP and server with page for defining these parameters
-			//ESP_LOGI(TAG_WIFI_AP, "ESP_WIFI_MODE_AP");
 			wifi_init_softap();
 			//initialize mDNS service
 			initialise_mdns(NULL, true);
 			node_is_station = false;
 			//start server
-			xTaskCreate(ap_server_task, "ap_server_task", 1024*4, &node_restart, 1, &ap_server_task_handle);
+			xTaskCreate(ap_server_task, "ap_server_task", 1024*4, NULL, 1, NULL);
 		}
 		err = nvs_commit(storage_handle);
 		printf((err != ESP_OK) ? "Commit failed!\n" : "Commit done\n");
@@ -375,66 +348,6 @@ void init_nvs(void){
 		nvs_close(storage_handle);
 	}
 	printf("\n");
-}
-
-
-/*************************************************************
- *
- *
- *
- * ************************************************************/
-void delete_button_fun(void *pvParameter){
-	esp_err_t err;
-	nvs_handle storage_handle = 0;
-
-	printf("Button task is ready\n");
-
-	for(;;){
-		//wait for button pressed
-		xSemaphoreTake(delete_button_sem, portMAX_DELAY);
-		printf("Delete wifi data in NVS\n");
-		irq_counter++;
-		//wait a bit to avoid button vibration
-		vTaskDelay(200 / portTICK_PERIOD_MS);
-		int lev = gpio_get_level(GPIO_DELETE_BUTTON);
-
-		if (lev == 0){
-			err = nvs_open("storage", NVS_READWRITE, &storage_handle);
-			if (err == ESP_OK){
-
-				nvs_erase_key(storage_handle, "ssid");
-				nvs_erase_key(storage_handle, "pass");
-				nvs_erase_key(storage_handle, "mdns_host");
-
-				printf("Committing updates in NVS ... ");
-				err = nvs_commit(storage_handle);
-				printf((err != ESP_OK) ? "Failed!\n" : "Done\n");
-
-				nvs_close(storage_handle);
-				node_restart = true;
-			}
-			else{
-				printf("NVS failed to open: %s\n", esp_err_to_name(err));
-			}
-		}
-
-		//wait a bit to avoid button vibration
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-		nvs_delete_button_ready = true;
-	}
-}
-
-
-/***************************************************
- *
- * init I/O
- *
- **************************************************/
-static void ioInit(void){
-	
-	//install gpio isr service
-	gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
 }
 
 
@@ -452,69 +365,6 @@ static void chipInfo(void){
 
 	printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
 			(chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
-}
-
-
-/*********************************************************
- *
- *
- *
- * *******************************************************/
-void init_delete_button(void){
-
-	vSemaphoreCreateBinary(delete_button_sem);
-	//semaphore is available at the beginning, take it here
-	xSemaphoreTake(delete_button_sem, 0);
-
-	init_delete_button_io();
-
-	if (delete_button_sem != NULL){
-		xTaskCreate(&delete_button_fun, "delete_button_task", configMINIMAL_STACK_SIZE * 4, NULL, 0, NULL);
-	}
-
-}
-
-
-/* ************************************************************
- *
- * button interrupt
- *
- * ***********************************************************/
-static void IRAM_ATTR delete_button_isr_handler(void* arg){
-	static portBASE_TYPE xHigherPriorityTaskWoken;
-
-	if (nvs_delete_button_ready == true){
-		xSemaphoreGiveFromISR(delete_button_sem, &xHigherPriorityTaskWoken);
-		portYIELD_FROM_ISR();
-		nvs_delete_button_ready = false;
-	}
-}
-
-
-/*******************************************************************
- *
- * initialize delete button
- * this button deletes wifi parameters stored in NVS memory
- *
- * ******************************************************************/
-void init_delete_button_io(void){
-	gpio_config_t io_conf;
-
-	//interrupt on both edges
-	io_conf.intr_type = GPIO_INTR_NEGEDGE;
-	//bit mask of the pins, use GPIO4/5 here
-	io_conf.pin_bit_mask = GPIO_DELETE_BUTTON_MASK;
-	//set as input mode
-	io_conf.mode = GPIO_MODE_INPUT;
-	//enable pull-up mode
-	io_conf.pull_up_en = 1;
-	io_conf.pull_down_en = 0;
-	gpio_config(&io_conf);
-
-	//install gpio isr service
-	//gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
-	//hook isr handler for specific gpio pin
-	gpio_isr_handler_add(GPIO_DELETE_BUTTON, delete_button_isr_handler, NULL);
 }
 
 
