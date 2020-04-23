@@ -49,6 +49,7 @@
 #define GPIO_RGB_DATA_MASK		(1ULL << CONFIG_PIN_NUM_MOSI)
 
 #define ESP_INTR_FLAG_DEFAULT	0
+#define TCP_PORT 8080
 
 //wifi station configuration data
 char mdns_hostname[65];
@@ -265,9 +266,9 @@ void wifi_init_sta(char *ssid, char *pass){
     if (err == ESP_OK){
     	ESP_LOGI(TAG_WIFI, "wifi_init_sta finished.");
     	//turn off power savings
-    	esp_wifi_set_ps(WIFI_PS_NONE);
-    	//TODO: check power savings
-    	//esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    	//esp_wifi_set_ps(WIFI_PS_NONE);
+    	//turn ON power savings
+    	esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     }
     else{
     	ESP_LOGI(TAG_WIFI, "connection to AP failed");
@@ -324,7 +325,7 @@ void init_nvs(void){
 
 				//initialize wifi
 				wifi_init_sta(wifi_ssid, wifi_pass);
-				initialise_mdns(mdns_hostname, false);
+				initialize_mdns(mdns_hostname, false, TCP_PORT);
 			}
 			else{
 				printf("ssid, password or hostname too long, %i, %i, %i\n",
@@ -336,7 +337,7 @@ void init_nvs(void){
 			//start AP and server with page for defining these parameters
 			wifi_init_softap();
 			//initialize mDNS service
-			initialise_mdns(NULL, true);
+			initialize_mdns(mdns_hostname, false, TCP_PORT);
 			node_is_station = false;
 			//start server
 			xTaskCreate(ap_server_task, "ap_server_task", 1024*4, NULL, 1, NULL);
