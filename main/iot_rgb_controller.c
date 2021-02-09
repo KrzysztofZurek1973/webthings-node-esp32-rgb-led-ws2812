@@ -89,10 +89,10 @@ void ready_led_fun(void *pvParameter);
  *
  * **************************************************************/
 void app_main(){
-	time_t now;
-	struct tm timeinfo;
+	//time_t now;
+	//struct tm timeinfo;
 	bool time_zone_set = false;
-	char time_buffer[100];
+	//char time_buffer[100];
 
 	// Initialize NVS
 	esp_err_t err = nvs_flash_init();
@@ -106,6 +106,8 @@ void app_main(){
 
 	//chip information
 	chipInfo();
+	gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+	init_reset_button();
 	//spiInit();
 	
 	//initialize things, properties etc.
@@ -119,9 +121,10 @@ void app_main(){
 	gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
 	init_reset_button();
 	
-	int32_t heap, prev_heap, i = 0;
+	int32_t heap, i = 0;
+	//int32_t prev_heap;
 	heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-	prev_heap = heap;
+	//prev_heap = heap;
 	printf("%i, free heap: %i, irq: %i\n", i, heap, irq_counter);
 
 	while (1) {
@@ -138,7 +141,9 @@ void app_main(){
 				tzset();
 				time_zone_set = true;
 			}
-
+			
+			//test
+			/*
 			heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
 			if (heap != prev_heap){
 				time(&now);
@@ -147,6 +152,8 @@ void app_main(){
 				printf("%s, free heap: %i, irq: %i\n", time_buffer, heap, irq_counter);
 				prev_heap = heap;
 			}
+			*/
+			//end of test
 		}
 	}
 
@@ -261,7 +268,8 @@ void wifi_init_sta(char *ssid, char *pass){
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
-    esp_wifi_set_ps(WIFI_PS_NONE);
+    //esp_wifi_set_ps(WIFI_PS_NONE);
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     ESP_ERROR_CHECK(esp_wifi_start() );
 
 	//new version
@@ -283,9 +291,9 @@ void wifi_init_sta(char *ssid, char *pass){
         ESP_LOGE(TAG_WIFI, "UNEXPECTED EVENT");
     }
 
-    ESP_ERROR_CHECK(esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler));
-    ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler));
-    vEventGroupDelete(wifi_event_group);
+    //ESP_ERROR_CHECK(esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler));
+    //ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler));
+    //vEventGroupDelete(wifi_event_group);
 }
 
 
