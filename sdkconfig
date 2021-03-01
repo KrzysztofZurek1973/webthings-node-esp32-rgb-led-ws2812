@@ -121,7 +121,7 @@ CONFIG_PARTITION_TABLE_MD5=y
 #
 # RGB Controller Configuration
 #
-CONFIG_PIN_NUM_MOSI=25
+CONFIG_PIN_NUM_MOSI=18
 # end of RGB Controller Configuration
 
 #
